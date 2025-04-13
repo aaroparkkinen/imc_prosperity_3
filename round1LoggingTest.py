@@ -168,6 +168,42 @@ class Trader:
         #        orders.append(Order(product, best_bid, -qty))
         return orders
 
+
+    def printTradingState(self, tradingState: TradingState):
+        print(f"--- Trading State at timestamp {tradingState.timestamp} ---")
+        print(f"Trader Data: {tradingState.traderData}")
+
+        # Print current positions
+        print("Positions:")
+        for product, pos in tradingState.position.items():
+            print(f"  {product}: {pos}")
+
+        # Print order depths
+        print("\nOrder Depths:")
+        for symbol, depth in tradingState.order_depths.items():
+            print(f"  Symbol: {symbol}")
+            print(f"    Buy Orders:  {depth.buy_orders}")
+            print(f"    Sell Orders: {depth.sell_orders}")
+
+        # Print recent trades
+        print("\nOwn Trades Since Last Update:")
+        for symbol, trades in tradingState.own_trades.items():
+            if trades:
+                print(f"  {symbol}: {trades}")
+
+        print("\nMarket Trades Since Last Update:")
+        for symbol, trades in tradingState.market_trades.items():
+            if trades:
+                print(f"  {symbol}: {trades}")
+
+        # Print observations
+        print("\nObservations:")
+        print(tradingState.observations)
+
+        print("--- End of Trading State ---\n")
+        return None
+
+
     def process_product(self, result, product, tradingState: TradingState):
 
         position = tradingState.position.get(product, 0)
@@ -177,7 +213,7 @@ class Trader:
 
         if product == "RAINFOREST_RESIN":
             print("Printing Trading State")
-            print(tradingState)
+            self.printTradingState(tradingState)
             resulting_orders = self.RainforestResinStrategy(position, order_depth)
         elif product == "SQUID_INK":
             resulting_orders = self.SquidInkMomentumStrategy(position, order_depth)

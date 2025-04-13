@@ -16,7 +16,7 @@ k
 */.pymon
 .pymon
 *.pymon
-__pycache__/*
+**/__pycache__/*
 .__pycache__/*
 
 /rust_algos/target/
