@@ -1,6 +1,150 @@
-from datamodel import OrderDepth, UserId, TradingState, Order, Symbol
-from typing import List
-import string
+import json
+from typing import List, Any
+
+from datamodel import OrderDepth, TradingState, Order, Symbol, \
+    ProsperityEncoder, Observation, Trade, Listing
+
+
+class Logger:
+    def __init__(self) -> None:
+        self.logs = ""
+        self.max_log_length = 3750
+
+    def print(self, *objects: Any, sep: str = " ", end: str = "\n") -> None:
+        self.logs += sep.join(map(str, objects)) + end
+
+    def flush(self, state: TradingState, orders: dict[Symbol, list[Order]],
+        conversions: int, trader_data: str) -> None:
+        base_length = len(
+            self.to_json(
+                [
+                    self.compress_state(state, ""),
+                    self.compress_orders(orders),
+                    conversions,
+                    "",
+                    "",
+                ]
+            )
+        )
+
+        # We truncate state.traderData, trader_data, and self.logs to the same max. length to fit the log limit
+        max_item_length = (self.max_log_length - base_length) // 3
+
+        print(
+            self.to_json(
+                [
+                    self.compress_state(state, self.truncate(state.traderData,
+                                                             max_item_length)),
+                    self.compress_orders(orders),
+                    conversions,
+                    self.truncate(trader_data, max_item_length),
+                    self.truncate(self.logs, max_item_length),
+                ]
+            )
+        )
+
+        self.logs = ""
+
+    def compress_state(self, state: TradingState, trader_data: str) -> list[
+        Any]:
+        return [
+            state.timestamp,
+            trader_data,
+            self.compress_listings(state.listings),
+            self.compress_order_depths(state.order_depths),
+            self.compress_trades(state.own_trades),
+            self.compress_trades(state.market_trades),
+            state.position,
+            self.compress_observations(state.observations),
+        ]
+
+    def compress_listings(self, listings: dict[Symbol, Listing]) -> list[
+        list[Any]]:
+        compressed = []
+        for listing in listings.values():
+            compressed.append(
+                [listing.symbol, listing.product, listing.denomination])
+
+        return compressed
+
+    def compress_order_depths(self, order_depths: dict[Symbol, OrderDepth]) -> \
+        dict[Symbol, list[Any]]:
+        compressed = {}
+        for symbol, order_depth in order_depths.items():
+            compressed[symbol] = [order_depth.buy_orders,
+                                  order_depth.sell_orders]
+
+        return compressed
+
+    def compress_trades(self, trades: dict[Symbol, list[Trade]]) -> list[
+        list[Any]]:
+        compressed = []
+        for arr in trades.values():
+            for trade in arr:
+                compressed.append(
+                    [
+                        trade.symbol,
+                        trade.price,
+                        trade.quantity,
+                        trade.buyer,
+                        trade.seller,
+                        trade.timestamp,
+                    ]
+                )
+
+        return compressed
+
+    def compress_observations(self, observations: Observation) -> list[Any]:
+        conversion_observations = {}
+        for product, observation in observations.conversionObservations.items():
+            conversion_observations[product] = [
+                observation.bidPrice,
+                observation.askPrice,
+                observation.transportFees,
+                observation.exportTariff,
+                observation.importTariff,
+                observation.sugarPrice,
+                observation.sunlightIndex,
+            ]
+
+        return [observations.plainValueObservations, conversion_observations]
+
+    def compress_orders(self, orders: dict[Symbol, list[Order]]) -> list[
+        list[Any]]:
+        compressed = []
+        for arr in orders.values():
+            for order in arr:
+                compressed.append([order.symbol, order.price, order.quantity])
+
+        return compressed
+
+    def to_json(self, value: Any) -> str:
+        return json.dumps(value, cls=ProsperityEncoder, separators=(",", ":"))
+
+    def truncate(self, value: str, max_length: int) -> str:
+        lo, hi = 0, min(len(value), max_length)
+        out = ""
+
+        while lo <= hi:
+            mid = (lo + hi) // 2
+
+            candidate = value[:mid]
+            if len(candidate) < len(value):
+                candidate += "..."
+
+            encoded_candidate = json.dumps(candidate)
+
+            if len(encoded_candidate) <= max_length:
+                out = candidate
+                lo = mid + 1
+            else:
+                hi = mid - 1
+
+        return out
+
+
+logger = Logger()
+
 
 class Trader:
     def __init__(self):
@@ -23,7 +167,9 @@ class Trader:
     and sell when within 10% of the trailing high.
     The floor can be established through visualisation, but better to determine it through data analysis.
     """
-    def RainforestResinStrategy(self, position: int, order_depth: OrderDepth) -> List[Order]:
+
+    def RainforestResinStrategy(self, position: int, order_depth: OrderDepth) -> \
+        List[Order]:
         """
         Buys if best ask <= floor + 1,
         sells if best bid >= ceiling - 1,
@@ -71,7 +217,9 @@ class Trader:
          If momentum < -kelp threshold (downward momentum), sell at the bid price.
       6. Respect the position limit of 50.
     """
-    def KelpMomentumStrategy(self, position: int, order_depth: OrderDepth) -> List[Order]:
+
+    def KelpMomentumStrategy(self, position: int, order_depth: OrderDepth) -> \
+        List[Order]:
 
         product = "KELP"
         orders: List[Order] = []
@@ -106,7 +254,7 @@ class Trader:
                 orders.append(Order(product, best_ask, qty))
 
         # Downward momentum: signal to sell (trade at bid price)
-        #elif momentum < -self.kelp_momentum_threshold:
+        # elif momentum < -self.kelp_momentum_threshold:
         #    can_sell = limit + position
         #    bid_volume = order_depth.buy_orders.get(best_bid, 0)
         #    qty = min(can_sell, bid_volume)
@@ -127,7 +275,9 @@ class Trader:
          If momentum < -squid threshold (downward momentum), sell at bid price.
       6. Respect the position limit of 50.
     """
-    def SquidInkMomentumStrategy(self, position: int, order_depth: OrderDepth) -> List[Order]:
+
+    def SquidInkMomentumStrategy(self, position: int,
+        order_depth: OrderDepth) -> List[Order]:
 
         product = "SQUID_INK"
         orders: List[Order] = []
@@ -160,14 +310,13 @@ class Trader:
                 orders.append(Order(product, best_ask, qty))
         # Downward momentum: signal to sell (trade at bid price)
 
-        #momentum < -self.squid_momentum_threshold:
+        # momentum < -self.squid_momentum_threshold:
         #    can_sell = limit + position
         #    bid_volume = order_depth.buy_orders.get(best_bid, 0)
         #    qty = min(can_sell, bid_volume)
         #    if qty > 0:
         #        orders.append(Order(product, best_bid, -qty))
         return orders
-
 
     def printTradingState(self, tradingState: TradingState):
         print(f"--- Trading State at timestamp {tradingState.timestamp} ---")
@@ -203,7 +352,6 @@ class Trader:
         print("--- End of Trading State ---\n")
         return None
 
-
     def process_product(self, result, product, tradingState: TradingState):
 
         position = tradingState.position.get(product, 0)
@@ -214,26 +362,27 @@ class Trader:
         if product == "RAINFOREST_RESIN":
             print("Printing Trading State")
             self.printTradingState(tradingState)
-            resulting_orders = self.RainforestResinStrategy(position, order_depth)
+            resulting_orders = self.RainforestResinStrategy(position,
+                                                            order_depth)
         elif product == "SQUID_INK":
-            resulting_orders = self.SquidInkMomentumStrategy(position, order_depth)
+            resulting_orders = self.SquidInkMomentumStrategy(position,
+                                                             order_depth)
         elif product == "KELP":
             resulting_orders = self.KelpMomentumStrategy(position, order_depth)
 
         return resulting_orders
 
-
-    def run(self, state: TradingState) -> tuple[dict[Symbol, List[Order]], int, str]:
-        print("traderData: " + state.traderData)
-        print("Observations: " + str(state.observations))
+    def run(self, state: TradingState) -> tuple[
+        dict[Symbol, List[Order]], int, str]:
 
         result = {}
+        trader_data = "Hamish-Test"
+        conversions = 1
 
         for product in state.order_depths:
             result[product] = self.process_product(result, product, state)
 
 
-        traderData = "Hamish-Test"
-        conversions = 1
+        logger.flush(state, result, conversions, trader_data)
 
-        return result, conversions, traderData
+        return result, conversions, trader_data
