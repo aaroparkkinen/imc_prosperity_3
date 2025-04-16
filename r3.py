@@ -211,7 +211,14 @@ class Trader:
                     orders.append(Order(product, best_bid, -qty_to_sell))
 
         return orders
-
+            
+# We  could look at reversing the strategy and shorting the downward momentum, 
+# Adding in a trailing stop loss to mitigate loses, the idea would be that
+# if we enter a trade at a given time step for a price of y, we would track 
+# the price of our investment and if the value of the investment at any stage 
+# is less than say 0.95*y we  exit the trade, 0.95 is an arbitrary example. Depending
+# on the volatility of the asset we could increase our loss threshold.
+    
     def KelpMomentumStrategy(self, position: int, order_depth: OrderDepth) -> \
         List[Order]:
         product = "KELP"
@@ -245,7 +252,14 @@ class Trader:
                 orders.append(Order(product, best_ask, qty))
 
         return orders
-
+            
+# We  could look at reversing the strategy and shorting the downward momentum, 
+# Adding in a trailing stop loss to mitigate loses, the idea would be that
+# if we enter a trade at a given time step for a price of y, we would track 
+# the price of our investment and if the value of the investment at any stage 
+# is less than say 0.95*y we  exit the trade, 0.95 is an arbitrary example. Depending
+# on the volatility of the asset we could increase our loss threshold.
+    
     def SquidInkMomentumStrategy(self, position: int,
         order_depth: OrderDepth) -> List[Order]:
         product = "SQUID_INK"
