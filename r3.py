@@ -623,7 +623,6 @@ class Trader:
         except (ValueError, OverflowError):
             return float('nan')
 
-
         if option_type.lower() == 'call':
             return (
                 underlying_price * self.normal_cdf(d1)
@@ -661,8 +660,9 @@ class Trader:
 
         # 2) Update rolling history of underlying
         self.volcanic_rock_history.append(raw_underlying_mid)
-        if len(self.volcanic_rock_history) > 50:
-            self.volcanic_rock_history = self.volcanic_rock_history[-50:]
+        threshold_history = 1000
+        if len(self.volcanic_rock_history) > threshold_history :
+            self.volcanic_rock_history = self.volcanic_rock_history[-threshold_history:]
 
         if len(self.volcanic_rock_history) < 2:
             return orders  # Not enough data to do anything yet
@@ -686,7 +686,7 @@ class Trader:
 
         # 6) Strike => Black–Scholes with dynamic vol & smoothed price
         strike = self.voucher_strikes[product]
-        fair_call = self.black_scholes_price(
+        black_scholes_price = self.black_scholes_price(
             option_type='call',
             underlying_price=smoothed_underlying,
             strike_price=strike,
@@ -704,8 +704,8 @@ class Trader:
         best_ask_voucher = min(depth_voucher.sell_orders.keys())
         limit_pos = self.limits.get(product, 50)
 
-        threshold = 1.0
-        buy_edge = fair_call - best_ask_voucher
+        threshold = 5.0
+        buy_edge = black_scholes_price - best_ask_voucher
         if buy_edge >= threshold:
             can_buy = limit_pos - position
             ask_vol = abs(depth_voucher.sell_orders[best_ask_voucher])
@@ -713,7 +713,7 @@ class Trader:
             if qty > 0:
                 orders.append(Order(product, best_ask_voucher, qty))
 
-        sell_edge = best_bid_voucher - fair_call
+        sell_edge = best_bid_voucher - black_scholes_price
         if sell_edge >= threshold:
             can_sell = limit_pos + position
             bid_vol = depth_voucher.buy_orders[best_bid_voucher]
